@@ -1,0 +1,14 @@
+node_modules/
+dist/
+netflix/dist/
+.DS_Store
+*.local
+.vercel
+
+# Local reference material, deliberately not shipped.
+#
+# `reference/` is screenshots of the site this design is a study of, captured to match its type
+# scale and motion. It is someone else's work and has no business in this repository.
+# `build-shots/` is the matching capture of ours, for side-by-side comparison.
+reference/
+build-shots/
