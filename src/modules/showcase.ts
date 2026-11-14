@@ -2,344 +2,329 @@
  * The featured-project panel.
  *
  * Occupies the slot the reference gives a video reel. Instead of footage it holds the flagship
- * project's own interface, rebuilt from its components and animated. It opens with a clip-path wipe
- * as it scrolls into view, which is the reference's behaviour, and the play button follows through
- * to the repository, because there is nothing here to play or pause.
+ * project's own interface, rebuilt from its components and animated. It grows as it scrolls into
+ * view, which is the reference's behaviour, and the whole panel links through to the live app,
+ * because there is nothing here to play or pause.
  */
 
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { prefersReducedMotion } from './env';
+import { sfx } from './sound';
 
-/* ------------------------------------------------------------------ the drive */
+/* ------------------------------------------------------------------ the data */
 
-interface Item {
-  id: string;
+interface Donation {
   name: string;
-  when: string;
-  size: string;
-  kind: 'file' | 'folder' | 'alias';
-  star?: boolean;
+  amount: string;
+  /** One of the form's purpose pills, by its short label. */
+  purpose: string;
+  mode: 'Cash' | 'UPI';
+  time: string;
+  /** The idempotency key the client generates. Shown truncated, the way a log would. */
+  txn: string;
+  /** Weak signal: the volunteer taps Submit twice, and the retry is the one the ledger refuses. */
+  weak?: boolean;
 }
 
-/** Where every loop starts. Turns mutate a copy of this, and it is restored when the loop wraps. */
-const START: Item[] = [
-  { id: 'i42', name: 'invoice-0142.pdf', when: 'Aug 20', size: '41 KB', kind: 'file' },
-  { id: 'i41', name: 'invoice-0141.pdf', when: 'Aug 12', size: '39 KB', kind: 'file' },
-  { id: 'i40', name: 'invoice-0140.pdf', when: 'Aug 04', size: '40 KB', kind: 'file' },
-  { id: 'd1', name: 'deck-final.pdf', when: 'Aug 18', size: '4.1 MB', kind: 'file' },
-  { id: 'd2', name: 'deck-final-2.pdf', when: 'Aug 18', size: '4.1 MB', kind: 'file' },
-  { id: 'cv', name: 'resume_2026.pdf', when: 'Aug 21', size: '90 KB', kind: 'file' },
-  { id: 'ds', name: 'design-system.pdf', when: 'Aug 20', size: '90 KB', kind: 'file' },
-  /*
-   * Ballast. None of these are touched by any turn; they are here because the window scales up to
-   * fill the viewport, and a five-row list in a 900px-tall window left most of it empty white. A
-   * drive should look like it has things in it.
-   */
-  { id: 'x1', name: 'onboarding-deck.pdf', when: 'Aug 14', size: '2.6 MB', kind: 'file' },
-  { id: 'x2', name: 'brand-guidelines.pdf', when: 'Aug 11', size: '78 KB', kind: 'file' },
-  { id: 'x3', name: 'q3-forecast.pdf', when: 'Aug 09', size: '112 KB', kind: 'file' },
-  { id: 'x4', name: 'meeting-notes.pdf', when: 'Aug 06', size: '22 KB', kind: 'file' },
-  { id: 'x5', name: 'architecture-review.pdf', when: 'Aug 02', size: '154 KB', kind: 'file' },
-  { id: 'x6', name: 'release-checklist.pdf', when: 'Jul 29', size: '18 KB', kind: 'file' },
-  { id: 'x7', name: 'user-research.pdf', when: 'Jul 24', size: '640 KB', kind: 'file' },
-  { id: 'x8', name: 'headshot.jpg', when: 'Jul 22', size: '2.2 MB', kind: 'file' },
-];
+/** The pill labels are shortened to fit the phone; the ledger and the verify page use the full names. */
+const PURPOSE: Record<string, string> = {
+  General: 'General Donation',
+  Cultural: 'Cultural Program',
+};
+const purposeName = (p: string) => PURPOSE[p] ?? p;
 
-/** What a step does to the drive. Every step has one: see the note on TURNS. */
-type Effect =
-  | { do: 'add'; item: Item }
-  | { do: 'remove'; ids: string[] }
-  | { do: 'rename'; map: Record<string, string> }
-  | { do: 'star'; ids: string[] }
-  | { do: 'tag'; ids: string[]; label: string };
+/** Ganesh Chaturthi 2026. GPMS receipt IDs are RCT-YYYYMMDD-NNNNN (ReceiptService.gs). */
+const DAY_ID = '20260914';
+const DAY = '14 Sept 2026';
+const COLLECTOR = 'Amit S.';
 
-interface Step {
-  tool: string;
-  what: string;
-  effect: Effect;
-}
-
-interface Turn {
-  prompt: string;
-  /** The permission mode, which is what decides each step's gate. */
-  mode: string;
-  note: string;
-  steps: Step[];
-}
+const rid = (n: number) => `RCT-${DAY_ID}-${String(n).padStart(5, '0')}`;
+const inr = (a: string) => `₹${Number(a).toLocaleString('en-IN')}`;
 
 /*
- * Three turns of the same agent, in order, on one drive that keeps whatever the last turn did.
- *
- * EVERY STEP HAS A VISIBLE CONSEQUENCE. An earlier version also listed steps the mode had queued for
- * approval, which was accurate but read as the plan announcing work that then never happened, so
- * those are gone: each line here changes something you can watch change.
- *
- * The permission mode still varies, and it still has to be consistent with what runs. PROJECT.md 4.8:
- * on AUTO-ORGANIZE reversible work - folders, renames, moves, tags, stars - runs immediately, while
- * destructive or public steps wait. So the first two turns are reversible-only on Auto-organize, and
- * the delete and the public alias only appear in the Full access turn, where they really would run.
- *
- * Every tool name is from the agent's real tool table in that same section.
+ * The evening so far. Ballast for the ledger, so the write lands in a sheet that already has a night's
+ * collection in it rather than in an empty grid. Invented donors; real formats.
  */
-const TURNS: Turn[] = [
-  {
-    prompt: 'tidy up my invoices',
-    mode: 'Auto-organize',
-    note: 'Auto-organize · 3 steps applied',
-    steps: [
-      {
-        tool: 'create_folder', what: 'Finance', 
-        effect: { do: 'add', item: { id: 'fin', name: 'Finance', when: 'now', size: '3 files', kind: 'folder' } },
-      },
-      {
-        tool: 'rename_file', what: 'invoices to 2026-invoice-*',
-        effect: { do: 'rename', map: {
-          i42: '2026-invoice-0142.pdf', i41: '2026-invoice-0141.pdf', i40: '2026-invoice-0140.pdf',
-        } },
-      },
-      {
-        /* Renamed first, then filed: a file that has already left the top level cannot be seen
-         * being renamed. */
-        tool: 'move_file', what: '3 invoices into Finance',
-        effect: { do: 'remove', ids: ['i42', 'i41', 'i40'] },
-      },
-    ],
-  },
-  {
-    prompt: 'flag the duplicate deck and star the real one',
-    mode: 'Auto-organize',
-    note: 'Auto-organize · 2 steps applied',
-    steps: [
-      {
-        tool: 'add_tag', what: 'duplicate to deck-final-2.pdf',
-        effect: { do: 'tag', ids: ['d2'], label: 'duplicate' },
-      },
-      { tool: 'set_favorite', what: 'deck-final.pdf', effect: { do: 'star', ids: ['d1'] } },
-    ],
-  },
-  {
-    prompt: 'link my resume and bin the duplicate',
-    mode: 'Full access',
-    note: 'Full access · 3 steps applied, including the delete',
-    steps: [
-      {
-        tool: 'create_alias', what: '/shaurya/resume',
-        effect: { do: 'add', item: { id: 'al', name: '/shaurya/resume', when: 'now', size: 'alias', kind: 'alias' } },
-      },
-      { tool: 'set_favorite', what: 'resume_2026.pdf', effect: { do: 'star', ids: ['cv'] } },
-      /* A delete and a public link, which is exactly what Full access is the mode for. */
-      { tool: 'delete_file', what: 'deck-final-2.pdf', effect: { do: 'remove', ids: ['d2'] } },
-    ],
-  },
+const EARLIER: Array<[string, string, Donation['mode'], string]> = [
+  ['Priya Sharma', '101', 'UPI', 'General'],
+  ['Mohan Lal', '51', 'Cash', 'Prasad'],
+  ['Kavita Singh', '251', 'UPI', 'Decoration'],
+  ['Rajesh Gupta', '1001', 'Cash', 'Murti'],
+  ['Neha Jha', '101', 'Cash', 'General'],
+  ['Suresh Yadav', '501', 'UPI', 'Cultural'],
+  ['Pooja Mishra', '51', 'Cash', 'Prasad'],
+  ['Deepak Roy', '251', 'Cash', 'General'],
+  ['Anjali Das', '101', 'UPI', 'Murti'],
 ];
+const FIRST_NEW = 133 + EARLIER.length;
+
+/** Three donations, in order, into one ledger that keeps every row the previous ones wrote. */
+const TURNS: Donation[] = [
+  { name: 'Ramesh Kumar', amount: '501', purpose: 'Murti', mode: 'Cash', time: '7:12 pm', txn: '3f9a' },
+  { name: 'Sunita Devi', amount: '1001', purpose: 'Prasad', mode: 'UPI', time: '7:14 pm', txn: '7c21', weak: true },
+  { name: 'Anil Verma', amount: '251', purpose: 'Decoration', mode: 'Cash', time: '7:17 pm', txn: 'b84e' },
+];
+
+/** Rows the sheet shows before the oldest one scrolls off the top. */
+const MAX_ROWS = 13;
 
 /* ------------------------------------------------------------------ the demo */
 
 /**
- * The featured panel's demo: BYOS's own interface, with its agent working on one drive over time.
+ * The featured panel's demo: one donation's whole trip through GPMS, on a loop.
  *
- * Each turn types a different request, gets back a plan naming the agent's real tools, and then the
- * permission mode decides what runs. Anything that runs is committed: the folder made in the first
- * turn is still there in the third, and the file the second turn was not allowed to delete is the
- * file the third one deletes. That continuity is the story, so the rows are mutated in place rather
- * than re-rendered per turn.
+ * The volunteer fills in the real form; the ledger takes the row under the script lock; the receipt
+ * goes out on WhatsApp; the donor scans its QR and gets the verify page. The second turn is the case
+ * the system was hardened for: one bar of signal, Submit tapped twice, and the transaction ID lets the
+ * first write land and turns the retry away. The ledger is never re-rendered between turns, so every
+ * row written stays written, which is the point of a ledger.
  */
 function initReel(root: ParentNode): void {
-  const stage = root.querySelector<HTMLElement>('.js-byos');
+  const stage = root.querySelector<HTMLElement>('.js-gpms');
   if (!stage) return;
 
-  const rowsBox = stage.querySelector<HTMLElement>('.js-byos-rows');
-  const stepsBox = stage.querySelector<HTMLElement>('.js-byos-steps');
-  const countEl = stage.querySelector<HTMLElement>('.js-byos-count');
-  const noteEl = stage.querySelector<HTMLElement>('.js-byos-note');
-  const plan = stage.querySelector<HTMLElement>('.js-byos-plancard');
-  const typed = stage.querySelector<HTMLElement>('.js-byos-typed');
-  const caret = stage.querySelector<HTMLElement>('.js-byos-caret');
-  const chip = stage.querySelector<HTMLElement>('.js-byos-chip');
-  if (!rowsBox || !stepsBox || !countEl || !noteEl || !plan || !typed || !chip) return;
+  const q = <T extends HTMLElement = HTMLElement>(sel: string) => stage.querySelector<T>(sel);
+  const form = q('.js-gpms-form');
+  const done = q('.js-gpms-done');
+  const nameEl = q('.js-gpms-name');
+  const amtEl = q('.js-gpms-amt');
+  const presets = q('.js-gpms-presets');
+  const purposes = q('.js-gpms-purposes');
+  const modes = q('.js-gpms-modes');
+  const submit = q('.js-gpms-submit');
+  const ridEl = q('.js-gpms-rid');
+  const donorEl = q('.js-gpms-donor');
+  const sumEl = q('.js-gpms-sum');
+  const wa = q('.js-gpms-wa');
+  const toast = q('.js-gpms-toast');
+  const lock = q('.js-gpms-lock');
+  const rowsBox = q('.js-gpms-rows');
+  const log = q('.js-gpms-log');
+  const scan = q('.js-gpms-scan');
+  const beam = q('.js-gpms-beam');
+  const valid = q('.js-gpms-valid');
+  const dl = q('.js-gpms-dl');
+  const sig = q('.js-gpms-sig');
+  if (
+    !form || !done || !nameEl || !amtEl || !presets || !purposes || !modes || !submit || !ridEl
+    || !donorEl || !sumEl || !wa || !toast || !lock || !rowsBox || !log || !scan || !beam || !valid
+    || !dl
+  ) return;
 
-  const MARK = { file: 'byos_doc', folder: 'byos_folder', alias: 'byos_alias' } as const;
+  const nameIn = nameEl.parentElement as HTMLElement;
+  const amtIn = amtEl.parentElement as HTMLElement;
+  const pick = (box: HTMLElement, v: string) => box.querySelector<HTMLElement>(`[data-v="${v}"]`);
 
-  /** One row. `collapsed` is for rows a step is about to create, so they can open on cue. */
-  const makeRow = (item: Item, collapsed = false) => {
+  /* --- the ledger --- */
+
+  const makeRow = (n: number, name: string, amount: string, mode: string, purpose: string, opts: { fresh?: boolean; dup?: boolean } = {}) => {
     const el = document.createElement('span');
-    el.className = `byos_row${collapsed ? ' byos_row__new' : ''}`;
-    el.dataset.id = item.id;
+    el.className = `gpms_row${opts.fresh || opts.dup ? ' gpms_row__new' : ''}${opts.dup ? ' gpms_row__dup' : ''}`;
     el.innerHTML = `
-      <span class="byos_star${item.star ? ' is-on' : ''}">&#9733;</span>
-      <span class="${MARK[item.kind]}"></span>
-      <span class="byos_name"><span class="byos_nm">${item.name}</span></span>
-      <span class="byos_when">${item.when}</span>
-      <span class="byos_size">${item.size}</span>
-      <span class="byos_kebab"></span>`;
+      <span class="gpms_id">${rid(n)}</span>
+      <span>${opts.dup ? 'retry, same txn' : name}</span>
+      <span class="gpms_amt">${inr(amount)}</span>
+      <span>${mode}</span>
+      <span>${purposeName(purpose)}</span>
+      <span class="gpms_badge">${opts.dup ? 'Rejected' : 'Active'}</span>`;
     return el;
   };
 
-  const rowFor = (id: string) => rowsBox.querySelector<HTMLElement>(`[data-id="${id}"]`);
+  EARLIER.forEach(([name, amount, mode, purpose], i) => {
+    rowsBox.append(makeRow(133 + i, name, amount, mode, purpose));
+  });
 
-  /** Repaint the whole drive. Used to seed the loop and to reset it, never between turns. */
-  const seed = (items: Item[]) => {
-    rowsBox.innerHTML = '';
-    items.forEach((it) => rowsBox.append(makeRow(it)));
+  const ROW_H = 38;
+  /** Opens a row that was created collapsed. */
+  const open = (tl: gsap.core.Timeline, row: HTMLElement, at: number) =>
+    tl.to(row, {
+      height: ROW_H, opacity: 1, borderBottomColor: '#f0ebdf', duration: 0.45, ease: 'power2.out',
+      onComplete: () => row.classList.remove('gpms_row__new'),
+    }, at);
+  const close = (tl: gsap.core.Timeline, row: HTMLElement, at: number) =>
+    tl.to(row, {
+      height: 0, opacity: 0, duration: 0.4, ease: 'power2.inOut', onComplete: () => row.remove(),
+    }, at);
+
+  /* --- the two receipts --- */
+
+  const fillReceipt = (d: Donation, n: number) => {
+    ridEl.textContent = rid(n);
+    donorEl.textContent = d.name;
+    sumEl.textContent = inr(d.amount);
+    dl.innerHTML = ([
+      ['Receipt ID', rid(n), ''],
+      ['Donor Name', d.name, ''],
+      ['Amount', inr(d.amount), ' gpms_dt__amt'],
+      ['Purpose', purposeName(d.purpose), ''],
+      ['Collected By', COLLECTOR, ''],
+      ['Date', `${DAY}, ${d.time}`, ''],
+    ] as const).map(([k, v, c]) => `<span class="gpms_dt${c}"><span>${k}</span><span>${v}</span></span>`).join('');
   };
 
-  const paintPlan = (t: Turn) => {
-    stepsBox.innerHTML = t.steps.map((st) => `
-      <span class="byos_step">
-        <span class="byos_st"></span>
-        <em>${st.tool}</em>
-        <span class="byos_step_w">${st.what}</span>
-        <span class="byos_step_g">done</span>
-      </span>`).join('');
-    countEl.textContent = `${t.steps.length} step${t.steps.length === 1 ? '' : 's'}`;
-    noteEl.textContent = t.note;
-    chip.textContent = t.mode;
-    return {
-      steps: Array.from(stepsBox.querySelectorAll<HTMLElement>('.byos_step')),
-      pips: Array.from(stepsBox.querySelectorAll<HTMLElement>('.byos_st')),
-      gates: Array.from(stepsBox.querySelectorAll<HTMLElement>('.byos_step_g')),
-    };
+  /** The form as a volunteer opens it: empty, nothing selected. */
+  const resetForm = (d: Donation) => {
+    nameEl.textContent = '';
+    amtEl.textContent = '0';
+    stage.querySelectorAll('.gpms_pill.is-on, .gpms_mode.is-on').forEach((p) => p.classList.remove('is-on'));
+    nameIn.classList.add('is-focus');
+    amtIn.classList.remove('is-focus');
+    sig?.classList.toggle('is-weak', !!d.weak);
+    lock.classList.remove('is-on');
+    gsap.set(toast, { opacity: 0, y: 6 });
+    gsap.set(beam, { opacity: 0, y: 0 });
   };
 
   /*
-   * Reduced motion gets the whole arc already played: the drive as the three turns leave it, with the
-   * last plan still on screen. Everything the loop says, without any of it moving.
+   * Reduced motion gets the first donation already made: the receipt on the volunteer's phone, the
+   * row in the ledger, the verify page on the donor's. Everything the loop says, with nothing moving.
    */
   if (prefersReducedMotion()) {
-    seed([
-      { id: 'al', name: '/shaurya/resume', when: 'now', size: 'alias', kind: 'alias' },
-      { id: 'fin', name: 'Finance', when: 'now', size: '3 files', kind: 'folder' },
-      { id: 'd1', name: 'deck-final.pdf', when: 'Aug 18', size: '4.1 MB', kind: 'file' },
-      { id: 'cv', name: 'resume_2026.pdf', when: 'Aug 21', size: '90 KB', kind: 'file', star: true },
-      { id: 'ds', name: 'design-system.pdf', when: 'Aug 20', size: '90 KB', kind: 'file' },
-    ]);
-    const last = TURNS[TURNS.length - 1];
-    const el = paintPlan(last);
-    typed.textContent = last.prompt;
-    if (caret) caret.style.display = 'none';
-    gsap.set(plan, { opacity: 1 });
-    gsap.set([...el.gates, noteEl], { opacity: 1 });
-    el.pips.forEach((p) => p.classList.add('is-done'));
+    const d = TURNS[0];
+    rowsBox.append(makeRow(FIRST_NEW, d.name, d.amount, d.mode, d.purpose));
+    fillReceipt(d, FIRST_NEW);
+    log.textContent = `appendRow ${rid(FIRST_NEW)} · txn ${d.txn}… · ok`;
+    gsap.set([done, valid], { opacity: 1 });
+    nameIn.classList.remove('is-focus');
     return;
   }
 
   let turn = 0;
+  let seq = FIRST_NEW;
   let live: gsap.core.Timeline | null = null;
   let onScreen = false;
 
   const play = () => {
-    const t = TURNS[turn % TURNS.length];
-    const first = turn % TURNS.length === 0;
+    const d = TURNS[turn % TURNS.length];
+    const n = seq;
+    const first = turn === 0;
 
-    /* Only the first turn of a cycle repaints. Every other turn inherits the drive as it stands. */
-    if (first) seed(START);
+    const tl = gsap.timeline({ onComplete: () => { turn += 1; seq += 1; if (onScreen) play(); } });
 
-    const el = paintPlan(t);
-    gsap.set([plan, ...el.gates, noteEl], { opacity: 0 });
-    gsap.set(typed, { textContent: '' });
-
-    const tl = gsap.timeline({ onComplete: () => { turn += 1; if (onScreen) play(); } });
-
-    if (first) {
-      const rows = Array.from(rowsBox.children) as HTMLElement[];
-      tl.fromTo(rows, { opacity: 0, y: 5 }, { opacity: 1, y: 0, duration: 0.35, stagger: 0.05, ease: 'power2.out' }, 0);
-    }
+    /* Back to an empty form and an idle scanner. The ledger is left exactly as it stands. */
+    tl.to([done, valid], { opacity: 0, duration: first ? 0 : 0.4, ease: 'power2.in' }, 0)
+      .add(() => resetForm(d), first ? 0 : 0.4);
 
     /*
-     * The request, typed. Stepped by hand rather than with a plugin: a tween on a plain counter,
-     * sliced into the node, with the step count set to the character count so it lands exactly on the
-     * last letter.
+     * The name, typed. A tween on a plain counter, sliced into the node, with the step count set to the
+     * character count so it lands exactly on the last letter.
      */
-    const typeFor = Math.min(2.2, 0.05 * t.prompt.length);
+    const t0 = first ? 0.5 : 0.8;
+    const typeFor = 0.06 * d.name.length;
     const cur = { i: 0 };
     tl.to(cur, {
-      i: t.prompt.length,
+      i: d.name.length,
       duration: typeFor,
-      ease: `steps(${t.prompt.length})`,
-      onUpdate: () => { typed.textContent = t.prompt.slice(0, Math.round(cur.i)); },
-    }, first ? 0.5 : 0.25);
+      ease: `steps(${d.name.length})`,
+      onUpdate: () => { nameEl.textContent = d.name.slice(0, Math.round(cur.i)); },
+    }, t0);
 
-    const sent = (first ? 0.5 : 0.25) + typeFor + 0.35;
+    /* Amount by preset chip, then purpose, then mode: the order the form asks for them. */
+    const t1 = t0 + typeFor + 0.35;
+    const preset = pick(presets, d.amount);
+    const purpose = pick(purposes, d.purpose);
+    const mode = pick(modes, d.mode);
+    tl.add(() => {
+      nameIn.classList.remove('is-focus');
+      amtIn.classList.add('is-focus');
+      preset?.classList.add('is-on');
+      amtEl.textContent = Number(d.amount).toLocaleString('en-IN');
+    }, t1);
+    /* immediateRender off: built up front, a fromTo would otherwise shrink the chip straight away. */
+    const pop = (el: HTMLElement | null, at: number, from = 0.9) => {
+      if (el) tl.fromTo(el, { scale: from }, { scale: 1, duration: 0.3, ease: 'back.out(3)', immediateRender: false }, at);
+      tl.add(() => sfx('tap'), at);
+    };
+    pop(preset, t1);
 
-    tl.to(plan, { opacity: 1, duration: 0.45, ease: 'power3.out' }, sent)
-      .from(el.steps, { opacity: 0, x: -8, duration: 0.3, stagger: 0.13, ease: 'power2.out' }, sent + 0.1);
+    const t2 = t1 + 0.6;
+    tl.add(() => { amtIn.classList.remove('is-focus'); purpose?.classList.add('is-on'); }, t2);
+    pop(purpose, t2);
 
-    /* Each step resolves in order, and the drive changes under it when a step actually ran. */
-    const begin = sent + 0.45 + el.steps.length * 0.13;
-    t.steps.forEach((st, i) => {
-      const at = begin + i * 0.95;
-      tl.add(() => el.pips[i]?.classList.add('is-done'), at)
-        .to(el.gates[i], { opacity: 1, duration: 0.28 }, at);
+    const t3 = t2 + 0.55;
+    tl.add(() => mode?.classList.add('is-on'), t3);
+    pop(mode, t3, 0.95);
 
-      const fx = st.effect;
+    /* Submit. On one bar of signal it gets tapped again before the first tap has come back. */
+    const t4 = t3 + 0.65;
+    const press = (at: number) =>
+      tl.to(submit, { scale: 0.96, duration: 0.08, yoyo: true, repeat: 1, ease: 'power1.inOut' }, at)
+        .add(() => sfx('submit'), at);
+    press(t4);
+    if (d.weak) press(t4 + 0.32);
 
-      if (fx.do === 'add') {
-        /* Created collapsed and opened on cue, so the row appears to be made by the step. */
-        const row = makeRow(fx.item, true);
-        tl.add(() => rowsBox.prepend(row), at)
-          .to(row, {
-            opacity: 1, height: 'auto', paddingTop: '0.4375rem', paddingBottom: '0.4375rem',
-            duration: 0.45, ease: 'power2.out',
-            onComplete: () => row.classList.remove('byos_row__new'),
-          }, at);
+    /* The write: lock taken, row appended, lock released. */
+    const t5 = t4 + 0.25;
+    tl.add(() => {
+      lock.classList.add('is-on');
+      lock.textContent = 'LockService · held';
+      log.textContent = `appendRow ${rid(n)} · txn ${d.txn}…`;
+    }, t5);
+
+    const t6 = t5 + 0.5;
+    const row = makeRow(n, d.name, d.amount, d.mode, d.purpose, { fresh: true });
+    tl.add(() => { rowsBox.append(row); sfx('row'); }, t6);
+    open(tl, row, t6);
+    tl.fromTo(row, { backgroundColor: '#fdf3dc' }, { backgroundColor: 'rgba(253, 243, 220, 0)', duration: 1.8, ease: 'power1.in' }, t6 + 0.45);
+
+    /* Keep the sheet to one screen: the oldest row leaves the top as the newest joins the bottom. */
+    tl.add(() => {
+      const rows = Array.from(rowsBox.children).filter((r) => !r.classList.contains('gpms_row__dup'));
+      if (rows.length > MAX_ROWS) {
+        const oldest = rows[0] as HTMLElement;
+        gsap.to(oldest, { height: 0, opacity: 0, duration: 0.4, ease: 'power2.inOut', onComplete: () => oldest.remove() });
       }
+    }, t6 + 0.05);
 
-      if (fx.do === 'rename') {
-        Object.entries(fx.map).forEach(([id, to], k) => {
-          const nm = rowFor(id)?.querySelector<HTMLElement>('.byos_nm');
-          if (!nm) return;
-          tl.to(nm, { opacity: 0, duration: 0.2, ease: 'power2.in' }, at + k * 0.08)
-            .add(() => { nm.textContent = to; }, at + k * 0.08 + 0.2)
-            .to(nm, { opacity: 1, duration: 0.25, ease: 'power2.out' }, at + k * 0.08 + 0.2);
-        });
-      }
+    let t7 = t6 + 0.65;
+    tl.add(() => { log.textContent = `appendRow ${rid(n)} · txn ${d.txn}… · ok`; }, t6 + 0.4);
 
-      if (fx.do === 'remove') {
-        fx.ids.forEach((id, k) => {
-          const row = rowFor(id);
-          if (!row) return;
-          tl.to(row, {
-            opacity: 0, height: 0, paddingTop: 0, paddingBottom: 0, x: 12,
-            duration: 0.4, ease: 'power2.inOut',
-            onComplete: () => row.remove(),
-          }, at + k * 0.09);
-        });
-      }
-
-      if (fx.do === 'star') {
-        fx.ids.forEach((id) => {
-          const star = rowFor(id)?.querySelector<HTMLElement>('.byos_star');
-          if (!star) return;
-          tl.add(() => star.classList.add('is-on'), at)
-            .fromTo(star, { scale: 0.4 }, { scale: 1, duration: 0.4, ease: 'back.out(3)' }, at);
-        });
-      }
-
-      if (fx.do === 'tag') {
-        fx.ids.forEach((id) => {
-          const cell = rowFor(id)?.querySelector<HTMLElement>('.byos_name');
-          if (!cell) return;
-          const chipEl = document.createElement('span');
-          chipEl.className = 'byos_tag';
-          chipEl.textContent = fx.label;
-          tl.add(() => cell.append(chipEl), at)
-            .fromTo(chipEl, { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(2)' }, at);
-        });
-      }
-    });
-
-    const done = begin + t.steps.length * 0.95;
-    tl.to(noteEl, { opacity: 1, duration: 0.4 }, done)
-      /* The plan clears but the drive does not: the next turn starts from what this one left. */
-      .to(plan, { opacity: 0, y: -10, duration: 0.4, ease: 'power2.in' }, done + 2.4);
-
-    /* Only the last turn of a cycle wipes the drive, so the loop can start over. */
-    if (turn % TURNS.length === TURNS.length - 1) {
-      tl.to(Array.from(rowsBox.children), {
-        opacity: 0, duration: 0.35, stagger: 0.04, ease: 'power2.in',
-      }, done + 3.0);
+    if (d.weak) {
+      /* The retry arrives with the same transaction ID, and is shown being turned away. */
+      const dup = makeRow(n, d.name, d.amount, d.mode, d.purpose, { dup: true });
+      const at = t6 + 0.7;
+      tl.add(() => {
+        rowsBox.append(dup);
+        sfx('reject');
+        log.textContent = `retry · txn ${d.txn}… already written · rejected`;
+      }, at);
+      open(tl, dup, at);
+      close(tl, dup, at + 1.6);
+      t7 = at + 1.1;
     }
+
+    tl.add(() => {
+      lock.classList.remove('is-on');
+      lock.textContent = 'LockService';
+    }, t7);
+
+    /* The volunteer's success card, then the receipt out over WhatsApp. */
+    const t8 = t7 + 0.15;
+    tl.add(() => { fillReceipt(d, n); sfx('ding'); }, t8)
+      .to(done, { opacity: 1, duration: 0.4, ease: 'power2.out' }, t8);
+
+    const t9 = t8 + 0.9;
+    tl.to(wa, { scale: 0.95, duration: 0.08, yoyo: true, repeat: 1, ease: 'power1.inOut' }, t9)
+      .add(() => sfx('send'), t9 + 0.1)
+      .to(toast, { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' }, t9 + 0.15);
+
+    /* The donor scans it, and the verify page confirms the receipt against the ledger. */
+    const t10 = t9 + 0.5;
+    tl.set(beam, { opacity: 1, y: 0 }, t10)
+      .to(beam, { y: 148, duration: 0.55, yoyo: true, repeat: 1, ease: 'sine.inOut' }, t10)
+      .set(beam, { opacity: 0 }, t10 + 1.1);
+
+    const t11 = t10 + 1.2;
+    tl.add(() => sfx('verify'), t11)
+      .to(valid, { opacity: 1, duration: 0.4, ease: 'power2.out' }, t11)
+      /* Its rows were only written by fillReceipt() above, so they are looked up when this runs. */
+      .add(() => {
+        gsap.from(Array.from(dl.children), { opacity: 0, y: 4, duration: 0.3, stagger: 0.07, ease: 'power2.out' });
+      }, t11 + 0.15);
+
+    /* Hold on the finished state long enough to read it. */
+    tl.to({}, { duration: 3 }, t11 + 0.6);
 
     live = tl;
   };
@@ -378,14 +363,14 @@ export function initShowcase(root: ParentNode = document): void {
    * A scale rather than the clip-path reveal this used to do. A clip-path uncovers more of a
    * fixed-size thing; the reference's reel actually gets bigger.
    */
-  const stage = root.querySelector<HTMLElement>('.js-byos');
+  const stage = root.querySelector<HTMLElement>('.js-gpms');
 
   /*
    * The two ends of the scale, measured rather than guessed, because they depend on the viewport in a
    * way calc() cannot express. Recomputed on resize.
    */
-  const scaler = root.querySelector<HTMLElement>('.byos_scale');
-  /* These MUST match the .byos_win rules in sections.css, including the narrow breakpoint. */
+  const scaler = root.querySelector<HTMLElement>('.gpms_scale');
+  /* These MUST match the .gpms_win rules in sections.css, including the narrow breakpoint. */
   const WIDE = { w: 1280, h: 800 };
   const NARROW = { w: 420, h: 640 };
   const measure = () => {
@@ -400,7 +385,13 @@ export function initShowcase(root: ParentNode = document): void {
      * the smaller viewport dimension so it stays proportionate on a phone.
      */
     const pad = Math.max(20, Math.min(window.innerWidth, window.innerHeight) * 0.045);
-    const fit = Math.min((window.innerWidth - pad * 2) / d.w, (window.innerHeight - pad * 2) / d.h);
+    /*
+     * Wider at the sides on the wide layout, to clear the fixed chrome: the logo and socials rail on
+     * the left and the nav on the right sit about 9.5vw in from each edge (they are sized in rem, which
+     * this site scales with vw). Without it the nav landed on the app bar's URL.
+     */
+    const padX = d === WIDE ? Math.max(pad, window.innerWidth * 0.095) : pad;
+    const fit = Math.min((window.innerWidth - padX * 2) / d.w, (window.innerHeight - pad * 2) / d.h);
     scaler.style.setProperty('--s1', fit.toFixed(4));
     scaler.style.setProperty('--s0', (fit * 0.6).toFixed(4));
   };
