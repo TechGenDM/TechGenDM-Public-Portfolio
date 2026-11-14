@@ -14,6 +14,13 @@ export const esc = (s) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
+/**
+ * `target`/`rel` for a link: pages and files open in a new tab, but mailto:/tel: stay put —
+ * in a new tab they hand off to the mail/phone app and leave the visitor on a blank page.
+ */
+export const linkTarget = (href) =>
+  /^(mailto|tel):/.test(href) ? '' : ' target="_blank" rel="noopener noreferrer"';
+
 /** Join class names, dropping falsy entries. */
 export const cx = (...parts) => parts.filter(Boolean).join(' ');
 

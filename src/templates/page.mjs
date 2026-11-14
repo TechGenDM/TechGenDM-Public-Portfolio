@@ -6,7 +6,7 @@
 
 import { site } from '../data/site.mjs';
 import { socials } from '../data/socials.mjs';
-import { esc } from './helpers.mjs';
+import { esc, linkTarget } from './helpers.mjs';
 import { icon } from './icons.mjs';
 import { logo } from './logo.mjs';
 import {
@@ -77,8 +77,7 @@ function footer() {
           .map(
             (s) => `
           <li class="social js-social">
-            <a class="social_link social_link__${esc(s.icon)}" href="${esc(s.href)}"
-               target="_blank" rel="noopener noreferrer">
+            <a class="social_link social_link__${esc(s.icon)}" href="${esc(s.href)}"${linkTarget(s.href)}>
               <span class="visually-hidden">${esc(s.label)}</span>
               ${icon(s.icon)}
             </a>

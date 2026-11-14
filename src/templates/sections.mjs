@@ -16,7 +16,7 @@ import { history } from '../data/history.mjs';
 import { projects, featured } from '../data/projects.mjs';
 import { achievements } from '../data/achievements.mjs';
 import { socials } from '../data/socials.mjs';
-import { cx, esc, headingMask, scrollParagraph, label, displayLines } from './helpers.mjs';
+import { cx, esc, linkTarget, headingMask, scrollParagraph, label, displayLines } from './helpers.mjs';
 
 const isRed = (layer) => layer === 'red';
 
@@ -643,7 +643,7 @@ export function contact(layer) {
             interactive: !red,
             className: 'social-link h3',
             deep: s.href
-              ? `<a class="contact_link" href="${esc(s.href)}" target="_blank" rel="noopener noreferrer">${esc(s.label)}</a>`
+              ? `<a class="contact_link" href="${esc(s.href)}"${linkTarget(s.href)}>${esc(s.label)}</a>`
               : `<span class="contact_link">${esc(s.label)}</span>`,
             masking: `<span class="text-dark contact_link">${esc(s.redLabel)}</span>`,
           }),
