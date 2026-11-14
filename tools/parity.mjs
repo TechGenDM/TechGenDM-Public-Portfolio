@@ -133,10 +133,10 @@ const clipped = await page.evaluate(() => {
     if (el.querySelector('.js-anim--scale') || el.closest('.js-anim--scale')) return;
     if (/_bg$|_bg\s/.test(String(el.className))) return;
     /*
-     * A row the featured panel's agent creates. It rests collapsed to zero height with its content
-     * still in the DOM, because opening it IS the animation, so it is clipped by definition.
+     * A ledger row the featured panel is about to write. It rests collapsed to zero height with its
+     * content still in the DOM, because opening it IS the animation, so it is clipped by definition.
      */
-    if (el.classList.contains('byos_row__new')) return;
+    if (el.classList.contains('gpms_row__new')) return;
     /*
      * A revealed row name is deliberately wider than its column and cut at the boundary, which is
      * the effect the reference uses. Clipped by design, so not a finding.
@@ -146,7 +146,13 @@ const clipped = await page.evaluate(() => {
      * The featured panel's window. Clipping its own contents is what a window does, and it is drawn
      * at a fixed design size and scaled, so its box and its content never agree by definition.
      */
-    if (el.classList.contains('byos_win')) return;
+    if (el.classList.contains('gpms_win')) return;
+    /*
+     * Everything INSIDE that window too: the window is scaled by a transform, so a descendant's
+     * bounding box is measured scaled while its scrollHeight is not, and every clipping box in there
+     * (the phones, the sheet) reads as losing a third of its content when it is losing none.
+     */
+    if (el.closest('.gpms_win')) return;
 
     const s = getComputedStyle(el);
     const hides = s.overflow === 'hidden' || s.overflowY === 'hidden' || s.overflow === 'clip';

@@ -765,38 +765,42 @@
 /* ---------- featured panel ---------- */
 
 /*
- * BYOS's interface, rebuilt from its components.
+ * GPMS's interface, rebuilt from its components.
  *
- * Every value here is from the project's own design system (BYOS/tokens.json, BYOS/theme.css) rather
- * than from this page's palette, because the point is to show what the project looks like. Its two
- * typefaces are licensed and are substituted, which is the same call this rebuild makes everywhere
- * else it cannot ship a font.
+ * Every colour here is from the project's own theme (GPMS app/globals.css: ink, cream, hair, gold,
+ * maroon, sage) rather than from this page's palette, because the point is to show what the project
+ * looks like. Its typefaces (Playfair Display, DM Sans) are substituted, which is the same call this
+ * rebuild makes everywhere else it does not ship a font.
  *
- * The tokens are scoped to this block so a light-on-white interface cannot leak into a page whose
- * every other surface is #0d0d0d.
+ * The tokens are scoped to this block so a cream interface cannot leak into a page whose every other
+ * surface is #0d0d0d.
+ *
+ * Sized in PIXELS throughout, on purpose. The window is a fixed design canvas that showcase.ts
+ * scales to the viewport; this site scales rem with the viewport too, so rem inside the canvas would
+ * be scaled twice and the composition would drift between screen sizes.
  */
-.byos {
-  --ink: #17191c;
-  --paper: #ffffff;
-  --mist: #f2f2f3;
-  --fog: #fafafb;
-  --slate: #777b86;
-  --ash: #979799;
-  --smoke: #a3a6af;
-  /* Its tokens call this "the only chromatic surface in the system", so it is the only one used. */
-  --peach: #fbe1d1;
-  --sienna: #5d2a1a;
-  --line: #ececec;
-  --serif: ui-serif, Georgia, 'Times New Roman', serif;
+.gpms {
+  --ink: #170f26;
+  --cream: #fbf7ee;
+  --cream-2: #f3ecdc;
+  --hair: #e6dfcd;
+  --gold: #f0b84d;
+  --gold-soft: #f6cd79;
+  --gold-wash: #fdf3dc;
+  --ember: #e1602c;
+  --maroon: #7a2430;
+  --maroon-wash: #f4e9eb;
+  --sage: #4c7a4f;
+  --sage-wash: #e7efe7;
+  --text: #241c33;
+  --muted: #8b8494;
+  --serif: 'Playfair Display', ui-serif, Georgia, 'Times New Roman', serif;
   --sans: 'Nunito Sans', ui-sans-serif, system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /*
-   * `--grow` is scrubbed 0.66 -> 1 as the band scrolls into place, which is how the reference treats
-   * its reel: it enters inset to the content column and expands as it rises. Measured on the
-   * reference, from x238-1201 to x0-1440 at a 1440 viewport.
-   *
-   * It stops short of the page edges rather than going truly full-bleed, so the window keeps a margin
-   * either side and still reads as a window.
+   * `--grow` is scrubbed 0 -> 1 as the band scrolls into place, which is how the reference treats its
+   * reel: it enters inset to the content column and expands as it rises.
    */
   --grow: 0;
   margin-inline: auto;
@@ -805,17 +809,11 @@
 /*
  * The window SCALES, it does not stretch.
  *
- * `--grow` runs 0 to 1 as the band rises, taking the interface from an inset card with clear margins
- * either side to filling the viewport edge to edge. The first attempt interpolated width and height
- * and let the interior reflow, which broke it: at full screen the rows sat at the top, the ask bar at
- * the bottom, and half the viewport was empty white in between.
- *
- * So the window keeps ONE design size and is scaled. Everything inside grows together and the
- * composition survives at both ends. `--s0` and `--s1` are the two scales, written by showcase.ts on
- * resize because they depend on the viewport in a way calc() cannot express: the end scale covers the
- * larger of the two axes so the interface fills the screen rather than letterboxing.
+ * It keeps ONE design size and is scaled, so everything inside grows together and the composition
+ * survives at both ends. `--s0` and `--s1` are the two scales, written by showcase.ts on resize because
+ * they depend on the viewport in a way calc() cannot express.
  */
-.byos_scale {
+.gpms_scale {
   --s: calc(var(--s0) + (var(--s1) - var(--s0)) * var(--grow));
   transform: scale(var(--s));
   transform-origin: center center;
@@ -824,397 +822,734 @@
   --s1: 1;
 }
 
-.byos_win {
+.gpms_win {
   position: relative;
   display: grid;
-  grid-template-columns: 3.25rem 1fr;
-  /*
-   * The one design size everything else is drawn against, in PIXELS on purpose.
-   *
-   * This was written in rem first, which was wrong twice over: this site scales rem (1rem is about
-   * 13.3px, not 16), so the box came out 750px while showcase.ts was computing scales against a
-   * different number entirely. A fixed design canvas wants absolute units, and it has to be the same
-   * number in both files.
-   *
-   * The size is also the type size. Because the window is scaled to fill the viewport, a smaller
-   * canvas means a larger multiplier and bigger text: at 900px wide it reached the screen at 1.6x and
-   * read as oversized. 1280 lands at about 1.13x on a 1440 screen, which is close to drawn size.
-   */
+  grid-template-rows: 52px 1fr;
+  /* The one design size. It MUST match WIDE in showcase.ts. */
   width: 1280px;
   height: 800px;
   overflow: hidden;
-  background: var(--paper);
-  /*
-   * --radius-2xl, held constant on screen.
-   *
-   * Divided by the scale, so it renders as a 16px corner at every size rather than a 16px corner
-   * multiplied by however far the window has grown. It no longer flattens to square at the end
-   * either: the window stops short of the edges, so it stays a rounded card the whole way.
-   */
+  background: var(--cream);
+  /* Divided by the scale, so it renders as a 16px corner at every size. */
   border-radius: calc(16px / var(--s));
   font-family: var(--sans);
-  /* The window has to lift off a near-black page, which a border alone will not do. Kept at full
-   * strength throughout, since there is always page around it to cast onto. */
+  /* Set here, in px terms, so the page's display line-heights cannot leak in and stack the type. */
+  line-height: 1.35;
+  color: var(--text);
   box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.55);
 }
 
-/* --- the icon rail --- */
+/* --- the app bar --- */
 
-.byos_rail {
-  display: grid;
-  justify-items: center;
-  align-content: start;
-  gap: 0.75rem;
-  padding: 0.75rem 0;
-  border-right: 1px solid var(--line);
-  background: var(--fog);
-}
-
-.byos_mark {
-  display: grid;
-  place-items: center;
-  width: 1.625rem;
-  height: 1.625rem;
-  border-radius: 8px;
+.gpms_bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
   background: var(--ink);
-  color: var(--paper);
-  font-family: var(--serif);
-  font-size: 0.8125rem;
+  color: var(--cream);
 }
 
-.byos_new {
+.gpms_brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.gpms_brand em {
+  margin-left: 4px;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-soft);
+}
+
+.gpms_seal {
   display: grid;
   place-items: center;
-  width: 1.625rem;
-  height: 1.625rem;
-  margin-bottom: 0.25rem;
-  border: 1px solid var(--line);
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
+  background: var(--gold);
   color: var(--ink);
-  font-size: 0.875rem;
-  line-height: 1;
+  font-size: 15px;
 }
 
-/*
- * Five different silhouettes, from one element each.
- *
- * Identical squares read as a column of checkboxes rather than as a navigation rail, which is what
- * the first pass looked like. Drive, starred, links, duplicates, agent: a rounded rect, a rotated
- * square, a ring, an offset pair, a small diamond.
- */
-.byos_ico {
-  width: 0.875rem;
-  height: 0.875rem;
-  border: 1.5px solid var(--smoke);
-  border-radius: 3px;
+.gpms_url {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: rgba(251, 247, 238, 0.55);
 }
 
-.byos_ico:nth-of-type(2) { border-radius: 2px; transform: rotate(45deg) scale(0.8); }
-.byos_ico:nth-of-type(3) { border-radius: 50%; }
-.byos_ico:nth-of-type(4) { box-shadow: 0.1875rem -0.1875rem 0 -0.0625rem var(--paper), 0.25rem -0.25rem 0 -0.0625rem var(--smoke); }
-.byos_ico:nth-of-type(5) { border-radius: 1px; transform: rotate(45deg) scale(0.62); }
+/* --- the three surfaces --- */
 
-.byos_ico.is-on {
-  border-color: var(--ink);
-  background: var(--mist);
+.gpms_cols {
+  display: grid;
+  grid-template-columns: 310px 1fr 270px;
+  gap: 32px;
+  min-height: 0;
+  padding: 22px 36px 28px;
 }
 
-/* --- the header --- */
+.gpms_col {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
 
-.byos_main {
+.gpms_cap {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.gpms_cap b { color: var(--maroon); }
+
+/* --- a phone --- */
+
+.gpms_phone {
   position: relative;
   display: grid;
-  grid-template-rows: auto auto 1fr;
-  min-width: 0;
+  grid-template-rows: 26px 1fr;
+  min-height: 0;
+  overflow: hidden;
+  border: 9px solid var(--ink);
+  border-radius: 40px;
+  background: var(--cream);
+  box-shadow: 0 18px 40px rgba(23, 15, 38, 0.18);
 }
 
-.byos_top {
+.gpms_status {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  padding: 0.625rem 0.875rem;
-  border-bottom: 1px solid var(--line);
+  justify-content: space-between;
+  padding: 0 20px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
 }
 
-.byos_search {
+.gpms_sig {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+}
+
+.gpms_sig i {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--ink);
+  transition: opacity 0.3s;
+}
+
+.gpms_sig i:nth-child(1) { height: 3px; }
+.gpms_sig i:nth-child(2) { height: 5px; }
+.gpms_sig i:nth-child(3) { height: 7px; }
+.gpms_sig i:nth-child(4) { height: 10px; }
+
+/* One bar left: the crowd at the gate, which is when a volunteer taps Submit twice. */
+.gpms_sig.is-weak i:nth-child(n + 2) { opacity: 0.18; }
+
+.gpms_screens {
+  position: relative;
+  min-height: 0;
+}
+
+.gpms_screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--cream);
+}
+
+/* The screens a step switches to start hidden; showcase.ts crossfades between them. */
+.gpms_screen__done,
+.gpms_screen__valid { opacity: 0; }
+
+.gpms_hd {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--hair);
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.gpms_back {
+  font-family: var(--sans);
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.gpms_body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: 14px 18px 18px;
+}
+
+/* --- the donation form --- */
+
+.gpms_lbl {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.gpms_lbl:first-child { margin-top: 0; }
+.gpms_lbl b { color: var(--maroon); }
+
+.gpms_lbl i {
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.gpms_in {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  width: min(20rem, 58%);
-  padding: 0.4375rem 0.75rem;
-  border-radius: 999px;
-  background: var(--mist);
-  color: var(--smoke);
-  font-size: 0.6875rem;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
 }
 
-.byos_kbd {
-  margin-left: auto;
-  font-size: 0.5625rem;
-  color: var(--ash);
+.gpms_in.is-focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
 }
 
-.byos_avatar {
+.gpms_in__amt {
+  gap: 6px;
+  height: 46px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.gpms_rs {
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.gpms_caret {
+  width: 1px;
+  height: 16px;
+  margin-left: 1px;
+  background: var(--ink);
+  opacity: 0;
+}
+
+.gpms_in.is-focus .gpms_caret { animation: gpms-blink 1s steps(1) infinite; }
+
+@keyframes gpms-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.gpms_pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.gpms_lbl + .gpms_pills { margin-top: 0; }
+
+.gpms_pill {
+  padding: 5px 9px;
+  border: 1px solid var(--hair);
+  border-radius: 24px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.gpms_modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.gpms_mode {
   display: grid;
   place-items: center;
-  width: 1.375rem;
-  height: 1.375rem;
-  margin-left: auto;
-  border-radius: 50%;
+  height: 38px;
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* GPMS's selected state for every toggle on the form: filled ink, cream text. */
+.gpms_pill.is-on,
+.gpms_mode.is-on {
+  border-color: var(--ink);
   background: var(--ink);
-  color: var(--paper);
-  font-size: 0.5625rem;
+  color: var(--cream);
 }
 
-.byos_head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.875rem 1rem 0.5rem;
-}
-
-/* Signifier at regular weight is the system's signature; a serif at 400 is the closest honest stand-in. */
-.byos_h1 {
-  font-family: var(--serif);
-  font-size: 1.375rem;
-  font-weight: 400;
-  color: var(--ink);
-}
-
-.byos_seg {
-  display: flex;
-  gap: 0.125rem;
-  padding: 0.125rem;
-  border-radius: 999px;
-  background: var(--mist);
-  font-size: 0.5625rem;
-  color: var(--slate);
-}
-
-.byos_seg > span { padding: 0.1875rem 0.5rem; border-radius: 999px; }
-.byos_seg > .is-on { background: var(--paper); color: var(--ink); }
-
-/* --- the file list --- */
-
-.byos_rows { padding: 0 1rem; }
-
-.byos_row {
+.gpms_submit {
   display: grid;
-  grid-template-columns: 0.75rem 0.75rem 1fr auto auto 0.5rem;
+  place-items: center;
+  height: 46px;
+  margin-top: auto;
+  border-radius: 14px;
+  background: var(--ink);
+  color: var(--cream);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* --- success, and the verify page --- */
+
+.gpms_body__center {
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.4375rem 0.375rem;
-  border-bottom: 1px solid var(--line);
-  font-size: 0.6875rem;
+  padding-top: 24px;
+  text-align: center;
+}
+
+.gpms_tick {
+  position: relative;
+  flex: none;
+  width: 54px;
+  height: 54px;
+  border: 3px solid var(--sage);
+  border-radius: 50%;
+}
+
+.gpms_tick::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 11px;
+  height: 22px;
+  border-right: 3px solid var(--sage);
+  border-bottom: 3px solid var(--sage);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.gpms_h2 {
+  margin-top: 12px;
+  font-family: var(--serif);
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.2;
   color: var(--ink);
 }
 
-/*
- * A page with its corner turned down. Without the fold it is a rounded square, which at this size is
- * indistinguishable from the checkbox that sits in the same column of the real app.
- */
-.byos_doc {
-  width: 0.5625rem;
-  height: 0.75rem;
-  border: 1px solid var(--smoke);
-  border-radius: 1px;
-  clip-path: polygon(0 0, 68% 0, 100% 22%, 100% 100%, 0 100%);
+/* The donor's phone is the narrower one; one line there needs a step down. */
+.gpms_screen__valid .gpms_h2 { font-size: 18px; }
+
+.gpms_sub {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
 }
 
-.byos_name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.byos_when, .byos_size { color: var(--ash); font-size: 0.625rem; font-variant-numeric: tabular-nums; }
-.byos_when { width: 3rem; }
-.byos_size { width: 3.25rem; text-align: right; }
-
-.byos_kebab {
-  width: 2px;
-  height: 0.625rem;
-  border-radius: 1px;
-  /* Three dots from one element: cheaper than three, and it is 2px wide. */
-  background: repeating-linear-gradient(var(--smoke) 0 2px, transparent 2px 4px);
+.gpms_card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--hair);
+  border-radius: 16px;
+  background: var(--cream-2);
 }
 
-/* --- the agent --- */
+.gpms_k {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 
-/* A folder row the agent creates, so it starts with no height at all. */
-.byos_row__new {
+.gpms_rid {
+  font-family: var(--serif);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.gpms_rule {
+  width: 100%;
+  height: 1px;
+  margin: 8px 0 4px;
+  background: var(--hair);
+}
+
+.gpms_donor {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.gpms_sum {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--sage);
+}
+
+.gpms_btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.gpms_btn {
+  display: grid;
+  place-items: center;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--cream);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.gpms_btn__wa {
+  background: #25d366;
+  color: #fff;
+}
+
+.gpms_toast {
+  margin-top: 14px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--cream);
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0;
+}
+
+/* --- the ledger --- */
+
+.gpms_sheet {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto auto;
+  min-height: 0;
   overflow: hidden;
+  border: 1px solid var(--hair);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(23, 15, 38, 0.1);
+}
+
+.gpms_sheet_top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.gpms_sheet_name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* The Sheets file glyph: a green page with a white grid on it. */
+.gpms_sheet_ico {
+  width: 14px;
+  height: 18px;
+  border-radius: 2px;
+  background:
+    linear-gradient(#fff, #fff) 3px 8px / 8px 1px no-repeat,
+    linear-gradient(#fff, #fff) 3px 11px / 8px 1px no-repeat,
+    linear-gradient(#fff, #fff) 3px 14px / 8px 1px no-repeat,
+    linear-gradient(#fff, #fff) 6px 8px / 1px 7px no-repeat,
+    #188038;
+}
+
+/* The script lock. Lit only while a write holds it, which is the whole point of showing it. */
+.gpms_lock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  transition: background 0.25s, border-color 0.25s, color 0.25s;
+}
+
+.gpms_lock::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--hair);
+  transition: background 0.25s;
+}
+
+.gpms_lock.is-on {
+  border-color: var(--gold);
+  background: var(--gold-wash);
+  color: var(--ink);
+}
+
+.gpms_lock.is-on::before { background: var(--gold); }
+
+.gpms_rows {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.gpms_row {
+  display: grid;
+  grid-template-columns: 128px 1fr 62px 40px 70px 58px;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border-bottom: 1px solid #f0ebdf;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.gpms_row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gpms_row__head {
+  height: 30px;
+  border-bottom-color: var(--hair);
+  background: var(--cream);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.gpms_id {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink);
+}
+
+.gpms_amt {
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.gpms_badge {
+  justify-self: start;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--sage-wash);
+  color: var(--sage);
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+/* A row the write is about to create, so it starts with no height and opens on cue. */
+.gpms_row__new {
   height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
+  overflow: hidden;
   border-bottom-color: transparent;
   opacity: 0;
 }
 
-.byos_folder {
-  width: 0.75rem;
-  height: 0.625rem;
-  border: 1px solid var(--sienna);
-  border-radius: 1px 3px 3px 3px;
-  background: var(--peach);
+/* The retry that the transaction ID turns away. */
+.gpms_row__dup {
+  background: var(--maroon-wash);
+  color: var(--maroon);
 }
 
-/* A link, for an alias row: two interlocking rounded stadiums at this size read as a chain. */
-.byos_alias {
-  width: 0.75rem;
-  height: 0.5rem;
-  border: 1px solid var(--sienna);
-  border-radius: 999px;
-  background: var(--peach);
+.gpms_row__dup .gpms_id { color: var(--maroon); text-decoration: line-through; }
+
+.gpms_row__dup .gpms_badge {
+  background: #fff;
+  color: var(--maroon);
 }
 
-/* The glyph is always in the markup; it only earns its colour once set_favorite has run. */
-.byos_star { color: transparent; font-size: 0.625rem; }
-.byos_star.is-on { color: var(--sienna); }
-
-/* A tag the agent adds. Sits in the name cell, so it arrives beside the file it describes. */
-.byos_name { display: flex; align-items: baseline; gap: 0.375rem; }
-
-.byos_tag {
-  flex: none;
-  padding: 0.0625rem 0.3125rem;
-  border-radius: 999px;
-  background: var(--peach);
-  color: var(--sienna);
-  font-size: 0.5rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.gpms_log {
+  display: block;
+  height: 34px;
+  padding: 10px 16px 0;
+  overflow: hidden;
+  border-top: 1px solid var(--hair);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+  color: var(--muted);
 }
 
-/* Two names in one cell, so a rename is a crossfade in place rather than a reflow. */
-.byos_name { position: relative; overflow: hidden; }
-.byos_nm { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.byos_nm__new { position: absolute; inset: 0; opacity: 0; }
+.gpms_tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 34px;
+  padding: 0 10px;
+  border-top: 1px solid var(--hair);
+  background: var(--cream);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
 
-/*
- * The agent sits over the list rather than in it, so the plan can arrive and leave without the rows
- * reflowing underneath it.
- */
-.byos_agent {
+.gpms_tabs span {
+  display: grid;
+  place-items: center;
+  padding: 0 12px;
+}
+
+.gpms_tabs .is-on {
+  border-bottom: 2px solid #188038;
+  background: #fff;
+  color: #188038;
+}
+
+/* --- the donor's scanner --- */
+
+.gpms_screen__scan {
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background: #120c1e;
+}
+
+.gpms_frame {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #fff;
+}
+
+/* Viewfinder corners, from one pseudo-element: eight bars, two per corner. */
+.gpms_frame::before {
+  --c: var(--gold);
+  content: '';
   position: absolute;
-  left: 1rem;
-  right: 1rem;
-  bottom: 1rem;
-  display: grid;
-  gap: 0.5rem;
+  inset: -14px;
+  background:
+    linear-gradient(var(--c), var(--c)) top left / 24px 3px no-repeat,
+    linear-gradient(var(--c), var(--c)) top left / 3px 24px no-repeat,
+    linear-gradient(var(--c), var(--c)) top right / 24px 3px no-repeat,
+    linear-gradient(var(--c), var(--c)) top right / 3px 24px no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom left / 24px 3px no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom left / 3px 24px no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom right / 24px 3px no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom right / 3px 24px no-repeat;
 }
 
-.byos_plan {
-  display: grid;
-  gap: 0.3125rem;
-  /* The steps live in their own element so the module can replace them per turn. */
-  grid-auto-rows: min-content;
-  padding: 0.75rem 0.875rem;
-  border: 1px solid var(--line);
-  /* --radius-xl */
-  border-radius: 12px;
-  background: var(--paper);
-  box-shadow: 0 0.5rem 1.5rem rgba(23, 25, 28, 0.09);
+.gpms_qr {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: var(--ink);
+}
+
+.gpms_beam {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: 8px;
+  height: 2px;
+  background: var(--ember);
+  box-shadow: 0 0 12px 2px rgba(225, 96, 44, 0.7);
   opacity: 0;
 }
 
-.byos_plan_t {
-  display: flex;
-  gap: 0.5rem;
-  font-size: 0.5625rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ash);
+.gpms_hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(251, 247, 238, 0.7);
 }
 
-.byos_plan_t em { font-style: normal; color: var(--smoke); }
-
-/* The steps wrapper is transparent to layout, so each step still lines up with the plan's grid. */
-.js-byos-steps { display: grid; gap: 0.3125rem; }
-
-.byos_step {
+.gpms_dl {
   display: grid;
-  grid-template-columns: 0.4375rem 6.75rem 1fr auto;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.6875rem;
-  color: var(--ink);
+  width: 100%;
+  margin-top: 14px;
+  text-align: left;
 }
 
-/* The status pip. Hollow while queued, filled once the step has actually run. */
-.byos_st {
-  width: 0.4375rem;
-  height: 0.4375rem;
-  border: 1px solid var(--smoke);
-  border-radius: 50%;
+.gpms_dt {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hair);
+  font-size: 12px;
 }
 
-.byos_st.is-done { border-color: var(--ink); background: var(--ink); }
+.gpms_dt:last-child { border-bottom: 0; }
 
-/* The real tool names from the agent's own tool table, so it reads as the API it is. */
-.byos_step em {
-  font-style: normal;
-  font-size: 0.5625rem;
-  letter-spacing: 0.02em;
-  color: var(--slate);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.byos_step_w { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.byos_step_g {
-  font-size: 0.5rem;
+.gpms_dt > span:first-child {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--smoke);
-  opacity: 0;
+  color: var(--muted);
 }
 
-.byos_plan_n {
-  padding-top: 0.375rem;
-  border-top: 1px solid var(--line);
-  font-size: 0.5rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--slate);
-  opacity: 0;
-}
-
-.byos_ask {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4375rem 0.4375rem 0.4375rem 0.875rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--paper);
-  box-shadow: 0 0.5rem 1.5rem rgba(23, 25, 28, 0.07);
-}
-
-.byos_ask_p {
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-  font-size: 0.6875rem;
+.gpms_dt > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  text-align: right;
   color: var(--ink);
 }
 
-.byos_caret {
-  width: 1px;
-  height: 0.75rem;
-  margin-left: 1px;
-  background: var(--ink);
+.gpms_dt__amt > span:last-child {
+  font-size: 14px;
+  color: var(--sage);
 }
-
-.byos_chip {
-  flex: none;
-  padding: 0.1875rem 0.5rem;
-  border: 1px solid var(--peach);
-  border-radius: 999px;
-  background: var(--peach);
-  font-size: 0.5625rem;
-  color: var(--sienna);
-}
-
-.byos_send { flex: none; width: 1.375rem; height: 1.375rem; border-radius: 50%; background: var(--mist); }
 
 /*
  * Caption below the band, in flow.
@@ -1271,18 +1606,16 @@
 
 @media (max-width: 767px) {
   /*
-   * Phones get a phone-shaped canvas. Scaling a 900px-wide desktop interface down to fit 375px would
-   * put its type at 40% and make it unreadable, so the narrow breakpoint is drawn at its own size and
-   * scaled up from there like every other screen.
+   * Phones get a phone-shaped canvas. Scaling the 1280px three-surface desktop composition down to
+   * 375px would put its type at 30% and make it unreadable, so the narrow breakpoint is drawn at its
+   * own size, keeps only the volunteer's phone, and is scaled up from there like every other screen.
+   * The size MUST match NARROW in showcase.ts.
    */
-  .byos_win { width: 420px; height: 640px; grid-template-columns: 2.25rem 1fr; }
-  /* At phone width the columns that carry the least stop earning their space. */
-  .byos_row { grid-template-columns: 0.75rem 0.75rem 1fr auto; }
-  .byos_when, .byos_kebab { display: none; }
-  .byos_h1 { font-size: 1.125rem; }
-  /* The tool name and the gate label are the first things to go when there is no room. */
-  .byos_step { grid-template-columns: 0.4375rem 1fr auto; }
-  .byos_step em { display: none; }
+  .gpms_win { width: 420px; height: 640px; }
+  .gpms_cols { grid-template-columns: 1fr; padding: 16px 40px 20px; }
+  .gpms_col__ledger,
+  .gpms_col__verify,
+  .gpms_url { display: none; }
 }
 
 /* ---------- achievements ---------- */
