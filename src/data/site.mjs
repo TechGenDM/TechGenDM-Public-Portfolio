@@ -12,9 +12,9 @@ export const site = {
   description:
     'I build production web and AI systems with TypeScript, Python, React, Next.js and LLMs, ' +
     'and consult on automation and AI integration for businesses.',
-  /* The deployed origin, for the canonical and og:url tags. Empty until the domain is settled;
-   * renderHead() omits both tags rather than pointing them somewhere wrong. */
-  url: '',
+  /* The deployed origin, for the canonical and og:url tags. If emptied, renderHead() omits both
+   * tags rather than pointing them somewhere wrong. */
+  url: 'https://techgendm.vercel.app/',
 
   nav: [
     { label: 'About', href: '#about' },
