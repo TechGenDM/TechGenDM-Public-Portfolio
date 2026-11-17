@@ -1,4 +1,4 @@
-# Devasish Mishra, portfolio
+# Devasish Mishra [TechGenDM], portfolio
 
 A rebuild of the interaction design of [minhpham.design](https://minhpham.design) with my own
 content. Vite + TypeScript + GSAP + Lenis + Three.js, no framework.
