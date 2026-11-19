@@ -80,3 +80,5 @@ identical shots, which is what makes the side-by-side contact sheet worth readin
 - **Touch.** There is no cursor to follow, so the spotlight is replaced by a hold-to-reveal
   ring button, as in the original.
 - `reference/` is local measurement material, not shipped.
+
+## Thank You!
